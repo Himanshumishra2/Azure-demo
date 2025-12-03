@@ -1,0 +1,6 @@
+flask
+gunicorn
+requests
+opentelemetry-api
+opentelemetry-sdk
+pytest
