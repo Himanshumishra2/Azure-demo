@@ -11,28 +11,14 @@ env:
   AKS_RESOURCE_GROUP: demoaks-rg
   AKS_CLUSTER_NAME: demoaks-aks
   K8S_NAMESPACE: demo
-  SERVICES: gateway user order
 
 jobs:
   build-and-push:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
-    outputs:
-      image-tags: ${{ steps.set-tags.outputs.image-tags }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Set Git SHA for image tagging
-        id: set-tags
-        run: |
-          SHA=$(git rev-parse --short HEAD)
-          echo "SHA=$SHA" >> $GITHUB_ENV
-          TAGS=""
-          for svc in ${{ env.SERVICES }}; do
-            TAGS="${TAGS}${svc}=${{ env.ACR_NAME }}.azurecr.io/${svc}:${SHA} "
-          done
-          echo "::set-output name=image-tags::$TAGS"
 
       - name: Log in to Azure
         uses: azure/login@v1
@@ -46,14 +32,20 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Build & Push Docker Images
+      - name: Build & Push Gateway image
         run: |
-          for svc in ${{ env.SERVICES }}; do
-            IMAGE=${{ env.ACR_NAME }}.azurecr.io/$svc:$SHA
-            echo "Building $IMAGE..."
-            docker build -t $IMAGE ./$svc
-            docker push $IMAGE
-          done
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/gateway:latest ./gateway
+          docker push ${{ env.ACR_NAME }}.azurecr.io/gateway:latest
+
+      - name: Build & Push User Service image
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/user:latest ./user
+          docker push ${{ env.ACR_NAME }}.azurecr.io/user:latest
+
+      - name: Build & Push Order Service image
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/order:latest ./order
+          docker push ${{ env.ACR_NAME }}.azurecr.io/order:latest
 
   deploy-to-aks:
     name: Deploy to AKS
@@ -74,46 +66,14 @@ jobs:
                                  --name ${{ env.AKS_CLUSTER_NAME }} \
                                  --overwrite-existing
 
-      - name: Update Kubernetes manifests with versioned images
+      - name: Deploy to AKS
         run: |
-          SHA=$(git rev-parse --short HEAD)
-          for svc in ${{ env.SERVICES }}; do
-            kubectl set image deployment/$svc $svc=${{ env.ACR_NAME }}.azurecr.io/$svc:$SHA -n ${{ env.K8S_NAMESPACE }}
-          done
+          kubectl apply -f k8s/ -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout restart deployment api-gateway -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout restart deployment user-service -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout restart deployment order-service -n ${{ env.K8S_NAMESPACE }}
 
-      - name: Rollout deployment and wait for readiness
-        run: |
-          for svc in ${{ env.SERVICES }}; do
-            kubectl rollout status deployment/$svc -n ${{ env.K8S_NAMESPACE }} --timeout=120s
-          done
-
-      - name: Verify all pods are running
+      - name: Verify deployment
         run: |
           kubectl get po -n ${{ env.K8S_NAMESPACE }}
           kubectl get svc -n ${{ env.K8S_NAMESPACE }}
-
-  rollback-on-failure:
-    name: Rollback on failed deployment
-    runs-on: ubuntu-latest
-    if: failure()
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Log in to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Get AKS credentials
-        run: |
-          az aks get-credentials --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
-                                 --name ${{ env.AKS_CLUSTER_NAME }} \
-                                 --overwrite-existing
-
-      - name: Rollback deployments
-        run: |
-          for svc in ${{ env.SERVICES }}; do
-            echo "Rolling back $svc to previous revision..."
-            kubectl rollout undo deployment/$svc -n ${{ env.K8S_NAMESPACE }}
-          done
