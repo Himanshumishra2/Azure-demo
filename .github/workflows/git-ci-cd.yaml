@@ -79,3 +79,4 @@ jobs:
         run: |
           kubectl get po -n ${{ env.K8S_NAMESPACE }}
           kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+
