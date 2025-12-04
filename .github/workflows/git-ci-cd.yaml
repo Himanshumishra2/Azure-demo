@@ -34,17 +34,17 @@ jobs:
 
       - name: Build & Push Gateway image
         run: |
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/gateway:latest ./gateway
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/gateway:latest ./services/gateway
           docker push ${{ env.ACR_NAME }}.azurecr.io/gateway:latest
 
       - name: Build & Push User Service image
         run: |
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/user:latest ./user
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/user:latest ./services/user
           docker push ${{ env.ACR_NAME }}.azurecr.io/user:latest
 
       - name: Build & Push Order Service image
         run: |
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/order:latest ./order
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/order:latest ./services/order
           docker push ${{ env.ACR_NAME }}.azurecr.io/order:latest
 
   deploy-to-aks:
