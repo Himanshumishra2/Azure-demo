@@ -68,7 +68,9 @@ jobs:
 
       - name: Deploy to AKS
         run: |
-          kubectl apply -f k8s/ -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/user-deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/order-deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/gateway-deployment.yaml -n ${{ env.K8S_NAMESPACE }}
           kubectl rollout restart deployment api-gateway -n ${{ env.K8S_NAMESPACE }}
           kubectl rollout restart deployment user-service -n ${{ env.K8S_NAMESPACE }}
           kubectl rollout restart deployment order-service -n ${{ env.K8S_NAMESPACE }}
